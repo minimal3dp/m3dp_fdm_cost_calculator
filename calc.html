@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDM 3D Print Cost Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* Custom Tooltip */
+        [data-tooltip] {
+            position: relative;
+            cursor: pointer;
+        }
+        [data-tooltip]::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%; /* Position above the element */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.25rem;
+            white-space: normal; /* Allow text to wrap */
+            width: 300px; /* Set a fixed width */
+            text-align: left;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+            z-index: 10;
+        }
+        [data-tooltip]:hover::before {
+            visibility: visible;
+            opacity: 1;
+        }
+        /* Info icon style */
+        .info-icon {
+            display: inline-block;
+            width: 1.125rem; /* 18px */
+            height: 1.125rem;
+            margin-left: 0.25rem;
+            background-color: #9ca3af; /* gray-400 */
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            font-weight: 500;
+            font-size: 0.875rem;
+            line-height: 1.125rem;
+            cursor: help;
+        }
+        /* Hide number input spinners */
+        input[type='number']::-webkit-outer-spin-button,
+        input[type='number']::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type='number'] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="container max-w-6xl mx-auto px-4 sm:px-8 py-4">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">
+                <a href="https://www.mdpi.com/2504-4494/9/9/321" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">
+                    FDM 3D Print Cost Calculator
+                </a>
+            </h1>
+            <p class="text-sm sm:text-base text-gray-600 mt-1">Based on the refined cost framework by Seregi & Ficzere (2025).</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container max-w-6xl mx-auto px-4 sm:px-8 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Left Column: Inputs -->
+            <div class="lg:col-span-1 space-y-6">
+
+                <!-- Card 1: Job Parameters -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-3 mb-4">1. Job Parameters (from Slicer)</h2>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="print_time" class="block text-sm font-medium text-gray-700">
+                                Total Print Time (hours)
+                                <span class="info-icon" data-tooltip="The total time your slicer estimates for the print job. (t_program in the article)">i</span>
+                            </label>
+                            <input type="number" id="print_time" value="5.5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="parts_per_program" class="block text-sm font-medium text-gray-700">
+                                Parts per Program
+                                <span class="info-icon" data-tooltip="The number of identical parts included in this single print job.">i</span>
+                            </label>
+                            <input type="number" id="parts_per_program" value="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="model_mass_g" class="block text-sm font-medium text-gray-700">
+                                Model Material (grams)
+                                <span class="info-icon" data-tooltip="The mass (in grams) of the main model material, as reported by your slicer.">i</span>
+                            </label>
+                            <input type="number" id="model_mass_g" value="85" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="support_mass_g" class="block text-sm font-medium text-gray-700">
+                                Support Material (grams)
+                                <span class="info-icon" data-tooltip="The mass (in grams) of the support material (including rafts, brims, etc.), as reported by your slicer. Enter 0 if none.">i</span>
+                            </label>
+                            <input type="number" id="support_mass_g" value="15" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Material & Labor -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-3 mb-4">2. Material & Labor Costs</h2>
+                    
+                    <!-- Model Material -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b pb-4 mb-4">
+                        <div>
+                            <label for="model_material_type" class="block text-sm font-medium text-gray-700">Model Material</label>
+                            <select id="model_material_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                                <option value="PLA">PLA</option>
+                                <option value="PETG">PETG</option>
+                                <option value="ASA">ASA</option>
+                                <option value="ABS">ABS</option>
+                                <option value="Nylon">Nylon</option>
+                                <option value="TPU">TPU</option>
+                                <option value="PC">Polycarbonate (PC)</option>
+                                <option value="Custom">Custom...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="model_material_cost_kg" class="block text-sm font-medium text-gray-700">
+                                Cost ($/kg)
+                                <span class="info-icon" data-tooltip="Cost of a 1kg roll of your model material. (p_model)">i</span>
+                            </label>
+                            <input type="number" id="model_material_cost_kg" value="20.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div id="model_density_custom_div" style="display: none;">
+                            <label for="model_density_custom" class="block text-sm font-medium text-gray-700">
+                                Custom Density (g/cm³)
+                                <span class="info-icon" data-tooltip="Enter the density for your custom material.">i</span>
+                            </label>
+                            <input type="number" id="model_density_custom" value="1.24" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                    <!-- Model Material Info Box -->
+                    <div id="model_material_info" class="bg-gray-50 p-3 rounded-md border border-gray-200" style="display: none;">
+                        <h4 class="font-semibold text-gray-700">PLA Properties</h4>
+                        <ul class="list-disc list-inside text-sm text-gray-600 mt-1">
+                            <li><strong>Extruder Temp:</strong> <span id="model_extruder_temp"></span></li>
+                            <li><strong>Bed Temp:</strong> <span id="model_bed_temp"></span></li>
+                            <li><strong>Build Surface:</strong> <span id="model_build_surface"></span></li>
+                        </ul>
+                    </div>
+
+                    <!-- Support Material -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-b pb-4 mb-4">
+                        <div>
+                            <label for="support_material_type" class="block text-sm font-medium text-gray-700">Support Material</Flabel>
+                            <select id="support_material_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                                <option value="PLA">PLA (as support)</option>
+                                <option value="PETG">PETG (as support)</option>
+                                <option value="PVA">PVA (dissolvable)</option>
+                                <option value="HIPS">HIPS (dissolvable)</option>
+                                <option value="ASA">ASA (as support)</option>
+                                <option value="ABS">ABS (as support)</option>
+                                <option value="Custom">Custom...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="support_material_cost_kg" class="block text-sm font-medium text-gray-700">
+                                Cost ($/kg)
+                                <span class="info-icon" data-tooltip="Cost of a 1kg roll of your support material. (p_support)">i</span>
+                            </label>
+                            <input type="number" id="support_material_cost_kg" value="20.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div id="support_density_custom_div" style="display: none;">
+                            <label for="support_density_custom" class="block text-sm font-medium text-gray-700">
+                                Custom Density (g/cm³)
+                                <span class="info-icon" data-tooltip="Enter the density for your custom support material.">i</span>
+                            </label>
+                            <input type="number" id="support_density_custom" value="1.24" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                    <!-- Support Material Info Box -->
+                    <div id="support_material_info" class="bg-gray-50 p-3 rounded-md border border-gray-200" style="display: none;">
+                        <h4 class="font-semibold text-gray-700">PLA (as support) Properties</h4>
+                        <ul class="list-disc list-inside text-sm text-gray-600 mt-1">
+                            <li><strong>Extruder Temp:</strong> <span id="support_extruder_temp"></span></li>
+                            <li><strong>Bed Temp:</strong> <span id="support_bed_temp"></span></li>
+                            <li><strong>Build Surface:</strong> <span id="support_build_surface"></span></li>
+                        </ul>
+                    </div>
+
+                    <!-- Labor -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                        <div>
+                            <label for="manual_labor_time" class="block text-sm font-medium text-gray-700">
+                                Manual Labor (minutes)
+                                <span class="info-icon" data-tooltip="Time for setup, part removal, and manual support cleaning. (t_machine_setup + t_postprocess)">i</span>
+                            </label>
+                            <input type="number" id="manual_labor_time" value="15" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="hourly_wage" class="block text-sm font-medium text-gray-700">
+                                Labor Rate ($/hour)
+                                <span class="info-icon" data-tooltip="Your hourly wage or the shop's labor rate. (p_hourlywage)">i</span>
+                            </label>
+                            <input type="number" id="hourly_wage" value="15.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Card 3: Machine Operation -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-3 mb-4">3. Machine Operation</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="printer_cost" class="block text-sm font-medium text-gray-700">
+                                Printer Cost ($)
+                                <span class="info-icon" data-tooltip="The total purchase price of your 3D printer. (e.g., Hobbyist: $200-$1,000; Professional: $3,000-$10,000+). Used for depreciation.">i</span>
+                            </label>
+                            <input type="number" id="printer_cost" value="1000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="printer_lifespan_hours" class="block text-sm font-medium text-gray-700">
+                                Printer Lifespan (hours)
+                                <span class="info-icon" data-tooltip="Estimated total service life of the printer in print hours. (e.g., 20,000 hours for a high-quality machine). This is used to calculate depreciation.">i</span>
+                            </label>
+                            <input type="number" id="printer_lifespan_hours" value="20000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="maintenance_cost_hour" class="block text-sm font-medium text-gray-700">
+                                Hourly Maintenance Cost ($)
+                                <span class="info-icon" data-tooltip="Estimated hourly cost for maintenance (e.g., lube, belts, fans). A hobbyist printer might have an annual cost of $100-$200. ($100 / 2000 print hours = $0.05/hour). (C_maintenance in article)">i</span>
+                            </label>
+                            <input type="number" id="maintenance_cost_hour" value="0.05" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <hr class="sm:col-span-2 my-2 border-gray-200">
+                        <div>
+                            <label for="power_consumption" class="block text-sm font-medium text-gray-700">
+                                Avg. Power (kW)
+                                <span class="info-icon" data-tooltip="Average power consumption of the printer in kilowatts. (E_machine)">i</span>
+                            </label>
+                            <input type="number" id="power_consumption" value="0.25" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="electricity_cost" class="block text-sm font-medium text-gray-700">
+                                Electricity Cost ($/kWh)
+                                <span class="info-icon" data-tooltip="Your local electricity rate. (p_electricity)">i</span>
+                            </label>
+                            <input type="number" id="electricity_cost" value="0.15" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: Tooling (Consumables) -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-3 mb-4">4. Tooling (Consumables)</h2>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+                        <!-- Build Plate -->
+                        <h3 class="sm:col-span-2 text-md font-medium text-gray-600 -mb-2">Build Plate</h3>
+                        <div>
+                            <label for="build_plate_cost" class="block text-sm font-medium text-gray-700">
+                                Build Plate Cost ($)
+                                <span class="info-icon" data-tooltip="The total replacement cost of your build plate (e.g., PEI sheet). (p_bed)">i</span>
+                            </label>
+                            <input type="number" id="build_plate_cost" value="30.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="build_plate_lifetime" class="block text-sm font-medium text-gray-700">
+                                Lifetime (hours)
+                                <span class="info-icon" data-tooltip="Estimated total service life of the build plate in print hours. (bed_lifetime)">i</span>
+                            </label>
+                            <input type="number" id="build_plate_lifetime" value="5000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+
+                        <!-- Model Nozzle -->
+                        <h3 class="sm:col-span-2 text-md font-medium text-gray-600 pt-3 -mb-2 border-t mt-3">Model Nozzle</h3>
+                        <div>
+                            <label for="model_nozzle_cost" class="block text-sm font-medium text-gray-700">
+                                Model Nozzle Cost ($)
+                                <span class="info-icon" data-tooltip="The replacement cost of your model material nozzle. (p_modeltip)">i</span>
+                            </label>
+                            <input type="number" id="model_nozzle_cost" value="15.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="model_nozzle_lifetime" class="block text-sm font-medium text-gray-700">
+                                Lifetime (kg)
+                                <span class="info-icon" data-tooltip="Estimated total mass (kg) this nozzle can extrude before failing (V_m.lifespan). See guide below.">i</span>
+                            </label>
+                            <input type="number" id="model_nozzle_lifetime" value="25" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+
+                        <!-- Support Nozzle -->
+                        <h3 class="sm:col-span-2 text-md font-medium text-gray-600 pt-3 -mb-2 border-t mt-3">Support Nozzle</h3>
+                        <div>
+                            <label for="support_nozzle_cost" class="block text-sm font-medium text-gray-700">
+                                Support Nozzle Cost ($)
+                                <span class="info-icon" data-tooltip="The replacement cost of your support material nozzle. (p_supporttip)">i</span>
+                            </label>
+                            <input type="number" id="support_nozzle_cost" value="15.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="support_nozzle_lifetime" class="block text-sm font-medium text-gray-700">
+                                Lifetime (kg)
+                                <span class="info-icon" data-tooltip="Estimated total mass (kg) this nozzle can extrude before failing (V_s.lifespan). See guide below.">i</span>
+                            </label>
+                            <input type="number" id="support_nozzle_lifetime" value="25" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 5: Nozzle Lifespan Guide -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-3 mb-4">Nozzle Lifespan Reference Guide</h2>
+                    <p class="text-sm text-gray-600 mb-4">
+                        Nozzle lifespan depends on its material and the filament you print with. Use this guide to estimate the "Lifetime (kg)" values above.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 border">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nozzle Material</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filament Type</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approx. Lifetime (Mass)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">Brass (Standard)</td>
+                                    <td class="px-4 py-3">Standard (PLA, ABS, PETG)</td>
+                                    <td class="px-4 py-3">Good (e.g., 20-50 kg)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">Brass (Standard)</td>
+                                    <td class="px-4 py-3">Abrasive (Carbon Fiber, Wood)</td>
+                                    <td class="px-4 py-3 text-red-600 font-semibold">Very Poor (e.g., < 1 kg)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">Hardened Steel</td>
+                                    <td class="px-4 py-3">Standard (PLA, ABS, PETG)</td>
+                                    <td class="px-4 py-3">Excellent (e.g., 100+ kg)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">Hardened Steel</td>
+                                    <td class="px-4 py-3">Abrasive (Carbon Fiber, Wood)</td>
+                                    <td class="px-4 py-3">Very Good (e.g., 10-25 kg)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">Stainless Steel</td>
+                                    <td class="px-4 py-3">Standard / Light Abrasive</td>
+                                    <td class="px-4 py-3">Very Good (e.g., 50+ kg)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">Ruby / ObXidian</td>
+                                    <td class="px-4 py-3">All Materials</td>
+                                    <td class="px-4 py-3">Exceptional (e.g., 200+ kg)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-4">
+                        <span class="font-semibold text-red-600">Key takeaway:</span> Using <span class="font-semibold">abrasive filaments</span> with a standard <span class="font-semibold">brass nozzle</span> will drastically shorten its life. A hardened steel nozzle is recommended for these materials.
+                    </p>
+                </div>
+
+                <!-- Card 6: Nozzle Size Guide -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-3 mb-4">Nozzle Size Reference Guide</h2>
+                    <p class="text-sm text-gray-600 mb-4">
+                        Nozzle diameter (size) impacts print speed, detail, and part strength. This does not directly affect the cost model but provides helpful context.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 border">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nozzle Size</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Common Use Case</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Print Speed</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detail Level</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">0.25mm</td>
+                                    <td class="px-4 py-3">High Detail Miniatures</td>
+                                    <td class="px-4 py-3">Slow</td>
+                                    <td class="px-4 py-3">Very High</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">0.40mm (Standard)</td>
+                                    <td class="px-4 py-3">General Purpose</td>
+                                    <td class="px-4 py-3">Medium</td>
+                                    <td class="px-4 py-3">High</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">0.60mm</td>
+                                    <td class="px-4 py-3">Strong Parts / Prototypes</td>
+                                    <td class="px-4 py-3">Fast</td>
+                                    <td class="px-4 py-3">Medium</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium">0.80mm+</td>
+                                    <td class="px-4 py-3">Rapid Prototyping</td>
+                                    <td class="px-4 py-3">Very Fast</td>
+                                    <td class="px-4 py-3">Low</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-4">
+                        <span class="font-semibold text-blue-600">Key takeaway:</span> A larger nozzle (e.g., 0.6mm) can significantly reduce <span class="font-semibold">Total Print Time</span> for functional parts, which in turn will lower the <span class="font-semibold">Machine Cost</span>.
+                    </p>
+                </div>
+
+                <!-- Card 7: Optional Post-Processing -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex items-center justify-between pb-3 mb-4 border-b">
+                        <h2 class="text-xl font-semibold text-gray-800">5. Chemical Post-Processing (Optional)</h2>
+                        <label for="enable_postprocessing" class="flex items-center cursor-pointer">
+                            <span class="mr-3 text-sm font-medium text-gray-700">Enable</span>
+                            <div class="relative">
+                                <input type="checkbox" id="enable_postprocessing" class="sr-only">
+                                <div class="block bg-gray-200 w-10 h-6 rounded-full"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div id="postprocessing_inputs" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="solving_time" class="block text-sm font-medium text-gray-700">
+                                Solving Time (hours)
+                                <span class="info-icon" data-tooltip="Time the part spends in the chemical solvent tank. (t_solving)">i</span>
+                            </label>
+                            <input type="number" id="solving_time" value="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="solvent_cost" class="block text-sm font-medium text-gray-700">
+                                Solvent Cost ($/cm³)
+                                <span class="info-icon" data-tooltip="Specific price of the solvent per cubic centimeter. (p_solventspec)">i</span>
+                            </label>
+                            <input type="number" id="solvent_cost" value="0.05" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="tank_power" class="block text-sm font-medium text-gray-700">
+                                Tank Power (kW)
+                                <span class="info-icon" data-tooltip="Energy consumption of the solvent heater tank in kilowatts. (E_tank)">i</span>
+                            </label>
+                            <input type="number" id="tank_power" value="0.5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-lg p-6 sticky top-24">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4">Cost Summary</h2>
+                    
+                    <div class="space-y-3 mb-6">
+                        <!-- Total Cost Per Part -->
+                        <div class="bg-blue-600 text-white rounded-lg p-4">
+                            <p class="text-lg font-medium">Total Cost per Part</p>
+                            <p id="total_cost_per_part" class="text-4xl font-bold">$0.00</p>
+                        </div>
+                        
+                        <!-- Total Program Cost -->
+                        <div class="bg-gray-100 text-gray-800 rounded-lg p-4">
+                            <p class="text-base font-medium">Total Program Cost</p>
+                            <p id="total_cost_program" class="text-2xl font-bold">$0.00</p>
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Cost Breakdown (per Part)</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Material Cost</span>
+                            <span id="c_material" class="font-medium text-gray-800">$0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Machine Cost</span>
+                            <span id="c_machine" class="font-medium text-gray-800">$0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Tooling Cost</span>
+                            <span id="c_tooling" class="font-medium text-gray-800">$0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Labor Cost</span>
+                            <span id="c_labor" class="font-medium text-gray-800">$0.00</span>
+                        </div>
+                        <div class="flex justify-between border-t pt-2 mt-2">
+                            <span class="text-gray-600">Post-Processing Cost</span>
+                            <span id="c_postprocess" class="font-medium text-gray-800">$0.00</span>
+                        </div>
+                        <div class="flex justify-between font-bold border-t pt-2 mt-2 text-base">
+                            <span class="text-gray-900">Total (per Part)</span>
+                            <span id="c_total_per_part_check" class="text-gray-900">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer with References -->
+    <footer class="bg-gray-800 text-gray-300 mt-12 py-8">
+        <div class="container max-w-6xl mx-auto px-4 sm:px-8">
+            <h2 class="text-xl font-semibold text-white mb-4">References</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                
+                <div>
+                    <h3 class="font-semibold text-gray-100 mb-1">Core Cost Model</h3>
+                    <p>
+                        Seregi, B.L.; Ficzere, P. (2025). Refined Cost Calculation Framework for FDM Parts. 
+                        <a href="https://www.mdpi.com/2504-4494/9/9/321" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                            J. Manuf. Mater. Process., 9, 321.
+                        </a>
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-gray-100 mb-1">Material Properties Guide</h3>
+                    <p>
+                        Simplify3D (n.d.). Filament Properties Table.
+                        <a href="https://www.simplify3d.com/resources/materials-guide/properties-table/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                            simplify3d.com
+                        </a>
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-gray-100 mb-1">Nozzle & Hardware Guides</h3>
+                    <ul class="list-disc list-inside">
+                        <li>
+                            Creality (n.d.). 3D Printer Nozzle Guide: Types & Sizes.
+                            <a href="https://www.creality.com/blog/3d-printer-nozzle-guide-types-sizes" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                creality.com
+                            </a>
+                        </li>
+                        <li>
+                            Sovol3D (n.d.). Difference Between Nozzles: Brass vs Hardened Steel.
+                            <a href="https://www.sovol3d.com/blogs/news/difference-between-nozzles-brass-vs-hardened-steel-3d-print" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                sovol3d.com
+                            </a>
+                        </li>
+                        <li>
+                            3DJake (n.d.). 3D Printer Nozzle Guide.
+                            <a href="https://www.3djake.com/info/guide/3d-printer-nozzle-guide" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                3djake.com
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-gray-100 mb-1">Build Plate Information</h3>
+                    <ul class="list-disc list-inside">
+                        <li>
+                            All3DP (n.d.). 3D Printer Bed: How to Choose the Right Build Plate.
+                            <a href="https://all3dp.com/2/3d-printer-bed-how-to-choose-the-right-build-plate/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                all3dp.com
+                            </a>
+                    </li>
+                </ul>
+                </div>
+
+                <!-- New references section for maintenance -->
+                <div class="md:col-span-2">
+                    <h3 class="font-semibold text-gray-100 mb-1">Machine Maintenance Guides</h3>
+                    <ul class="list-disc list-inside">
+                        <li>
+                            Fusion3 Design (n.d.). How Much Does a 3D Printer Cost?
+                            <a href="https://www.fusion3design.com/how-much-does-a-3d-printer-cost/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                fusion3design.com
+                            </a>
+                        </li>
+                        <li>
+                            EufyMake (n.d.). How Much Do 3D Prints Cost?
+                            <a href="https://www.eufymake.com/blogs/buying-guides/how-much-do-3d-prints-cost" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                eufymake.com
+                            </a>
+                        </li>
+                        <li>
+                            Raise3D (n.d.). 3D Printing Cost and Printer Price.
+                            <a href="https://www.raise3d.com/blog/3d-printing-cost-and-printer-price/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                raise3d.com
+                            </a>
+                        </li>
+                        <li>
+                            Raise3D (n.d.). 3D Printer Maintenance.
+                            <a href="https://www.raise3d.com/blog/3d-printer-maintenance/" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                raise3d.com
+                            </a>
+                        </li>
+                        <li>
+                            Qidi3D (n.d.). 3D Printer Maintenance Costs Guide.
+                            <a href="https://qidi3d.com/blogs/news/3d-printer-maintenance-costs-guide" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                                qidi3d.com
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // --- DATA ---
+        // From Simplify3D Properties Table
+        const materialData = {
+            "PLA": { density: 1.24, extruder: "190-220 °C", bed: "20-60 °C", surface: "Blue painter's tape, glue stick, PEI" },
+            "ABS": { density: 1.04, extruder: "220-250 °C", bed: "90-110 °C (Enclosure required)", surface: "Kapton tape, ABS slurry, PEI" },
+            "PETG": { density: 1.27, extruder: "230-250 °C", bed: "70-90 °C", surface: "Blue painter's tape, glue stick, PEI (w/ release agent)" },
+            "Nylon": { density: 1.08, extruder: "240-260 °C", bed: "60-80 °C (Enclosure recommended)", surface: "Glue stick, Garolite, PVA glue" },
+            "TPU": { density: 1.20, extruder: "210-230 °C", bed: "20-60 °C", surface: "Blue painter's tape, PEI" },
+            "ASA": { density: 1.07, extruder: "240-260 °C", bed: "90-110 °C (Enclosure required)", surface: "Kapton tape, ABS slurry, PEI" },
+            "PC": { density: 1.20, extruder: "270-310 °C", bed: "90-120 °C (Enclosure required)", surface: "Glue stick, Garolite, PEI" },
+            "PVA": { density: 1.19, extruder: "190-220 °C", bed: "20-60 °C", surface: "Blue painter's tape, PEI" },
+            "HIPS": { density: 1.07, extruder: "220-240 °C", bed: "90-110 °C", surface: "Kapton tape, PEI" },
+            "Custom": { density: 1.24, extruder: "N/A", bed: "N/A", surface: "N/A" } // Default for custom
+        };
+
+        // --- DOM ELEMENTS ---
+        const inputs = [
+            'print_time', 'parts_per_program', 'model_mass_g', 'support_mass_g',
+            'model_material_type', 'model_material_cost_kg', 'model_density_custom',
+            'support_material_type', 'support_material_cost_kg', 'support_density_custom',
+            'manual_labor_time', 'hourly_wage',
+            'printer_cost', 'printer_lifespan_hours', 'maintenance_cost_hour',
+            'power_consumption', 'electricity_cost',
+            'build_plate_cost', 'build_plate_lifetime', 'model_nozzle_cost', 'model_nozzle_lifetime',
+            'support_nozzle_cost', 'support_nozzle_lifetime', 'enable_postprocessing',
+            'solving_time', 'solvent_cost', 'tank_power'
+        ];
+
+        const domElements = {};
+        inputs.forEach(id => {
+            domElements[id] = document.getElementById(id);
+        });
+
+        const uiElements = {
+            modelDensityCustomDiv: document.getElementById('model_density_custom_div'),
+            supportDensityCustomDiv: document.getElementById('support_density_custom_div'),
+            postprocessingInputs: document.getElementById('postprocessing_inputs'),
+            modelMaterialInfo: document.getElementById('model_material_info'),
+            modelMaterialInfoTitle: document.getElementById('model_material_info').querySelector('h4'),
+            modelExtruderTemp: document.getElementById('model_extruder_temp'),
+            modelBedTemp: document.getElementById('model_bed_temp'),
+            modelBuildSurface: document.getElementById('model_build_surface'),
+            supportMaterialInfo: document.getElementById('support_material_info'),
+            supportMaterialInfoTitle: document.getElementById('support_material_info').querySelector('h4'),
+            supportExtruderTemp: document.getElementById('support_extruder_temp'),
+            supportBedTemp: document.getElementById('support_bed_temp'),
+            supportBuildSurface: document.getElementById('support_build_surface'),
+        };
+
+        const resultElements = {
+            total_cost_per_part: document.getElementById('total_cost_per_part'),
+            total_cost_program: document.getElementById('total_cost_program'),
+            c_material: document.getElementById('c_material'),
+            c_machine: document.getElementById('c_machine'),
+            c_tooling: document.getElementById('c_tooling'),
+            c_labor: document.getElementById('c_labor'),
+            c_postprocess: document.getElementById('c_postprocess'),
+            c_total_per_part_check: document.getElementById('c_total_per_part_check'),
+        };
+
+        // --- FUNCTIONS ---
+
+        /**
+         * Parses a float value from an input element, defaulting to 0 if invalid.
+         */
+        function getVal(id) {
+            const value = parseFloat(domElements[id].value);
+            return isNaN(value) ? 0 : value;
+        }
+
+        /**
+         * Formats a number as a currency string.
+         */
+        function formatCurrency(value) {
+            return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        }
+
+        /**
+         * Handles changes to the material dropdowns.
+         */
+        function handleMaterialChange(type) {
+            const selectEl = (type === 'model') ? domElements.model_material_type : domElements.support_material_type;
+            const customDiv = (type === 'model') ? uiElements.modelDensityCustomDiv : uiElements.supportDensityCustomDiv;
+            const customInput = (type === 'model') ? domElements.model_density_custom : domElements.support_density_custom;
+            const infoBox = (type === 'model') ? uiElements.modelMaterialInfo : uiElements.supportMaterialInfo;
+            
+            const selectedMaterial = selectEl.value;
+
+            if (selectedMaterial === 'Custom') {
+                customDiv.style.display = 'block';
+                infoBox.style.display = 'none';
+            } else {
+                customDiv.style.display = 'none';
+                const data = materialData[selectedMaterial] || materialData["PLA"]; // Default to PLA if not found
+                
+                // Set density for custom input (even though hidden) for the calculation
+                customInput.value = data.density;
+
+                // Update info box
+                infoBox.querySelector('h4').textContent = `${selectEl.options[selectEl.selectedIndex].text} Properties`;
+                infoBox.querySelector(type === 'model' ? '#model_extruder_temp' : '#support_extruder_temp').textContent = data.extruder;
+                infoBox.querySelector(type === 'model' ? '#model_bed_temp' : '#support_bed_temp').textContent = data.bed;
+                infoBox.querySelector(type === 'model' ? '#model_build_surface' : '#support_build_surface').textContent = data.surface;
+                infoBox.style.display = 'block';
+            }
+            calculateCost();
+        }
+
+        /**
+         * Main calculation logic based on the article.
+         */
+        function calculateCost() {
+            // --- 1. Get All Input Values ---
+            const t_program = getVal('print_time');
+            const pcs_per_program = Math.max(1, getVal('parts_per_program')); // Avoid division by zero
+            const m_model_g = getVal('model_mass_g');
+            const m_support_g = getVal('support_mass_g');
+            
+            const p_model_kg = getVal('model_material_cost_kg');
+            const p_support_kg = getVal('support_material_cost_kg');
+            const d_model = getVal('model_density_custom'); // This is updated by handleMaterialChange
+            const d_support = getVal('support_density_custom'); // This is updated by handleMaterialChange
+
+            const t_manual_min = getVal('manual_labor_time');
+            const p_hourlywage = getVal('hourly_wage');
+            
+            const p_printer = getVal('printer_cost');
+            const l_printer_hrs = Math.max(1, getVal('printer_lifespan_hours'));
+            const c_maintenance_hr = getVal('maintenance_cost_hour');
+            
+            const e_machine_kw = getVal('power_consumption');
+            const p_electricity = getVal('electricity_cost');
+            
+            const p_bed = getVal('build_plate_cost');
+            const t_bed_lifetime_hrs = Math.max(1, getVal('build_plate_lifetime')); // Avoid division by zero
+            
+            const p_modeltip = getVal('model_nozzle_cost');
+            const l_model_kg = Math.max(0.001, getVal('model_nozzle_lifetime')); // Avoid division by zero
+            
+            const p_supporttip = getVal('support_nozzle_cost');
+            const l_support_kg = Math.max(0.001, getVal('support_nozzle_lifetime')); // Avoid division by zero
+
+            const enable_post = domElements.enable_postprocessing.checked;
+            const t_solving = getVal('solving_time');
+            const p_solventspec = getVal('solvent_cost');
+            const e_tank_kw = getVal('tank_power');
+
+            // --- 2. Perform Calculations (based on article equations) ---
+
+            // --- Internal Calculations: Convert Mass to Volume ---
+            // V = mass (g) / density (g/cm³)
+            const V_model_total = (d_model > 0) ? m_model_g / d_model : 0;
+            const V_support_total = (d_support > 0) ? m_support_g / d_support : 0;
+            
+            // --- Internal Calculations: Convert Nozzle Lifetime (kg) to (cm³) ---
+            // V_lifespan (cm³) = mass (kg) * 1000 (g/kg) / density (g/cm³)
+            const V_m_lifespan = (d_model > 0) ? (l_model_kg * 1000) / d_model : 1;
+            const V_s_lifespan = (d_support > 0) ? (l_support_kg * 1000) / d_support : 1;
+
+
+            // --- Eq 1 (Modified): Material Cost ---
+            // Using mass and $/kg instead of volume
+            const C_model = (m_model_g / 1000) * p_model_kg;
+            const C_support = (m_support_g / 1000) * p_support_kg;
+            const C_material_program = C_model + C_support;
+
+            // --- Eq 3 & 4: Machine Operation Cost ---
+            // C_depreciation ($/hr) = Printer Cost / Printer Lifespan (hrs)
+            const c_depreciation = p_printer / l_printer_hrs;
+            // c_machine_rate ($/hr) = C_depreciation + C_maintenance
+            const c_machine_rate = c_depreciation + c_maintenance_hr;
+            
+            const C_power = e_machine_kw * p_electricity;
+            const C_machine_program = (c_machine_rate + C_power) * t_program;
+
+            // --- Eq 5: Tooling Cost ---
+            // Build Plate Cost (Modified from prints to hours)
+            const C_bed = (p_bed / t_bed_lifetime_hrs) * t_program; 
+            
+            // Nozzle Wear Cost (Using Volume)
+            const C_modeltip = (p_modeltip / V_m_lifespan) * V_model_total;
+            const C_supporttip = (p_supporttip / V_s_lifespan) * V_support_total;
+            
+            const C_tooling_program = C_bed + C_modeltip + C_supporttip;
+
+            // --- Eq 6: Labor Cost ---
+            const C_labor_program = p_hourlywage * (t_manual_min / 60);
+
+            // --- Eq 2: Post-Processing Cost ---
+            let C_postprocess_program = 0;
+            if (enable_post && V_support_total > 0) {
+                const C_solvent = V_support_total * p_solventspec;
+                const C_tank_energy = e_tank_kw * p_electricity * t_solving;
+                C_postprocess_program = C_solvent + C_tank_energy;
+            }
+
+            // --- Eq 7: Total Cost ---
+            const C_total_program = C_material_program + C_machine_program + C_tooling_program + C_labor_program + C_postprocess_program;
+            const C_total_per_part = C_total_program / pcs_per_program;
+
+            // --- 3. Update Results ---
+            resultElements.total_cost_per_part.textContent = formatCurrency(C_total_per_part);
+            resultElements.total_cost_program.textContent = formatCurrency(C_total_program);
+            
+            resultElements.c_material.textContent = formatCurrency(C_material_program / pcs_per_program);
+            resultElements.c_machine.textContent = formatCurrency(C_machine_program / pcs_per_program);
+            resultElements.c_tooling.textContent = formatCurrency(C_tooling_program / pcs_per_program);
+            resultElements.c_labor.textContent = formatCurrency(C_labor_program / pcs_per_program);
+            resultElements.c_postprocess.textContent = formatCurrency(C_postprocess_program / pcs_per_program);
+            resultElements.c_total_per_part_check.textContent = formatCurrency(C_total_per_part);
+        }
+
+        // --- EVENT LISTENERS ---
+        
+        // Add listeners to all inputs to recalculate on change
+        inputs.forEach(id => {
+            const el = domElements[id];
+            if (el.type === 'checkbox') {
+                el.addEventListener('change', calculateCost);
+            } else {
+                el.addEventListener('input', calculateCost);
+            }
+        });
+
+        // Special listeners for material dropdowns
+        domElements.model_material_type.addEventListener('change', () => handleMaterialChange('model'));
+        domElements.support_material_type.addEventListener('change', () => handleMaterialChange('support'));
+
+        // Listener for post-processing toggle
+        domElements.enable_postprocessing.addEventListener('change', () => {
+            uiElements.postprocessingInputs.classList.toggle('hidden', !domElements.enable_postprocessing.checked);
+            // Apply/remove styling to the toggle switch
+            const dot = domElements.enable_postprocessing.nextElementSibling.nextElementSibling;
+            const bg = domElements.enable_postprocessing.nextElementSibling;
+            if (domElements.enable_postprocessing.checked) {
+                dot.style.transform = 'translateX(100%)';
+                bg.classList.remove('bg-gray-200');
+                bg.classList.add('bg-blue-600');
+            } else {
+                dot.style.transform = 'translateX(0)';
+                bg.classList.add('bg-gray-200');
+                bg.classList.remove('bg-blue-600');
+            }
+            calculateCost();
+        });
+
+        // --- INITIALIZATION ---
+        
+        // Run calculations on page load
+        handleMaterialChange('model');
+        handleMaterialChange('support');
+    </script>
+</body>
+</html>
+
+
+
+
+
